@@ -34,10 +34,13 @@ import sys
 import logging
 from optparse import OptionParser
 
-def generate_events( filename, events ):
-    write_path = os.path.join( '.', filename )
-    if 'SPLUNK_HOME' in os.environ:
-        write_path = os.path.join( os.environ['SPLUNK_HOME'], 'var', 'spool', 'splunk', filename )
+def generate_events( events=0, filename=None ):
+    if filename:
+        write_path = os.path.join( '.', filename )
+    elif 'SPLUNK_HOME' in os.environ:
+        write_path = os.path.join( os.environ['SPLUNK_HOME'], 'var', 'spool', 'splunk', 'sing.log' )
+    else:
+        write_path = os.path.join( '.', 'sing.log' )
     
     logger = logging.getLogger("sing")
     logger.setLevel(logging.DEBUG)
@@ -49,11 +52,11 @@ def generate_events( filename, events ):
         logger.info( "sing" )
 
 
-def get_total_event_count( indexer, username, password ):
+def get_total_event_count( server, index, username, password ):
     from splunk import entity, auth, mergeHostPath
-    mergeHostPath( indexer, True )
+    mergeHostPath( server, True )
     auth.getSessionKey( username=username, password=password )
-    properties = entity.getEntity( entityPath='/data/indexes', entityName='main' ).properties
+    properties = entity.getEntity( entityPath='/data/indexes', entityName=index ).properties
     if 'totalEventCount' in properties:
         return int( properties['totalEventCount'] )
     else:
@@ -68,21 +71,30 @@ def check_total_event_count( total_event_count, events ):
 
 def main():
     parser = OptionParser()
-    parser.add_option("-f", "--file",       dest="filename",    default="sing.log", help="Write events to FILE.", metavar="FILE"     )
-    parser.add_option("-e", "--events",     dest="events",      default=1,          help="Number of events to generate.", type="int" )
-    parser.add_option("-i", "--indexer",    dest="indexer",                         help="Indexer to query for event count."         )
-    parser.add_option("-u", "--username",   dest="username",    default='admin',    help="Username to auth against Indexer."         )
-    parser.add_option("-p", "--password",   dest="password",    default='changeme', help="Username to auth against Indexer."         )
-    parser.add_option("-s", "--show",       dest="show",                            help="Print event count.", action="store_true"   )
+    parser.add_option( "-e", "--events", dest="events", type="int", default=0, \
+                       help="Number of events to generate." )
+    parser.add_option( "-f", "--filename", dest="filename", metavar="FILENAME", \
+                       help="Write events to FILENAME." )
+    parser.add_option( "-i", "--index", dest="index", default="main", \
+                       help="Index to query for event count." )
+    parser.add_option( "-p", "--password", dest="password", default='changeme', \
+                       help="Username to auth against Indexer." )
+    parser.add_option( "-r", "--report", dest="report", action="store_true", \
+                       help="Return the event count on the server." )
+    parser.add_option( "-s", "--server", dest="server", \
+                       help="Server to query." )
+    parser.add_option( "-u", "--username", dest="username", default='admin', \
+                       help="Username to auth against Indexer." )
     (options, args) = parser.parse_args()
-
-    if options.indexer:
-        total_event_count = get_total_event_count( indexer=options.indexer, username=options.username, password=options.password )
-        if options.show:
+    
+    if options.server:
+        total_event_count = get_total_event_count( server=options.server, index=options.index, \
+                                                    username=options.username, password=options.password )
+        if options.report:
             print total_event_count
         return check_total_event_count( total_event_count=total_event_count, events=options.events )
     else:
-        return generate_events( filename=options.filename, events=options.events )
+        return generate_events( events=options.events, filename=options.filename )
 
 
 if __name__ == "__main__":
